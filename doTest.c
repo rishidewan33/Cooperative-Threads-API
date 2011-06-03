@@ -15,7 +15,7 @@ main(int argc, char **argv)
 
   printf("\n\n*** BUG **** Should not get here\n\n");
   assert(0);
-  //printf("passed\n");
+
   return 0;
 }
 
