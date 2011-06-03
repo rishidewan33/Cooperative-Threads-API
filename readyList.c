@@ -82,6 +82,3 @@ ThrdCtlBlk* findTCB(readyList *rl, Tid target){
     //if can't find Tid in list, return 0
     return fail;
 }
-
-
-
