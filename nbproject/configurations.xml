@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="69">
+  <logicalFolder name="root" displayName="root" projectFiles="true">
+    <logicalFolder name="HeaderFiles"
+                   displayName="Header Files"
+                   projectFiles="true"
+                   kind="SOURCE_LOGICAL_FOLDER">
+      <itemPath>ULT.h</itemPath>
+      <itemPath>basicThreadTests.h</itemPath>
+      <itemPath>HeaderFiles/cfuncproto.h</itemPath>
+      <itemPath>interrupt.h</itemPath>
+      <itemPath>ourThreadTests.h</itemPath>
+      <itemPath>readyList.h</itemPath>
+    </logicalFolder>
+    <logicalFolder name="SourceFiles"
+                   displayName="Source Files"
+                   projectFiles="true"
+                   kind="SOURCE_LOGICAL_FOLDER">
+      <itemPath>ULT.c</itemPath>
+      <itemPath>alarmHelper.c</itemPath>
+      <itemPath>basicThreadTests.c</itemPath>
+      <itemPath>doTest.c</itemPath>
+      <itemPath>doTest2.c</itemPath>
+      <itemPath>interrupt.c</itemPath>
+      <itemPath>ourThreadTests.c</itemPath>
+      <itemPath>parseUcontext.c</itemPath>
+      <itemPath>readyList.c</itemPath>
+      <itemPath>showHandler.c</itemPath>
+      <itemPath>signalme.c</itemPath>
+    </logicalFolder>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>GNUmakefile</itemPath>
+      <itemPath>Makefile-labULT.mk</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceRootList>
+    <Elem>.</Elem>
+  </sourceRootList>
+  <projectmakefile>Makefile-labULT.mk</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <developmentServer>localhost</developmentServer>
+        <compilerSet>GNU|GNU</compilerSet>
+        <platform>2</platform>
+      </toolsSet>
+      <makefileType>
+        <makeTool>
+          <buildCommandWorkingDir>.</buildCommandWorkingDir>
+          <buildCommand>$(MAKE) -f Makefile</buildCommand>
+          <cleanCommand>$(MAKE) -f Makefile clean</cleanCommand>
+          <executablePath>./showHandler</executablePath>
+          <cTool>
+            <incDir>
+              <pElem>.</pElem>
+            </incDir>
+          </cTool>
+        </makeTool>
+      </makefileType>
+      <item path="signalme.c" ex="true" tool="0">
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>

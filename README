@@ -1,0 +1,89 @@
+Name and UTEID of both team members
+Rishi Dewan rrd328
+Lindsey O'Niell ldo252
+
+****Description of high level design here.
+
+Each thread in our user-level threads package has its own Thread Control Block. The Thread Control Block's struct contains the following: 
+    
+    Tid tid;
+    ucontext_t uc;
+    unsigned int *sp; 
+    unsigned int *stack_orig; 
+    int zombie; 
+    struct ThrdCtlBlk *prev;
+    struct ThrdCtlBlk *next;
+
+The tid is the thread's identification number that is assigned to it during its creation. We recycled the tid's using a basic array (marking taken values with a 1 and free values with a 0), so that all of the ID numbers are within the range of the maximum possible number of threads. At creation, the array is searched. It takes the first free TID (in this project, ranging from 0 to 1023) and assigns it to the thread that is being created. 
+
+The uc is the ucontext_t of the thread. Within the ucontext are multiple stacks, and the current thread's set of registers. We accessed the registers in our CreateThread method in order to set the program coutner (EIP) and the stack pointer (ESP). The registers are stored in an array within ucontext called uc_mcontext.gregs[].For simplicity purposes, we decided not to use the stack within ucontext, but rather created our own stack for each thread.
+
+The thread's stack, that we store in the thread's TCB, is pointed to by 'unsigned int *sp'. Upon creating a thread, we allocate ULT_MIN_STACK amount of memory for the stack. We save a pointer to the stack right after we malloc, which we call 'unsigned int *stack_orig', so that we can free the stack when the thread is destroyed. The stack stores the function and its paramaters, which we will call from our stub function when the thread is yielded to. 
+
+'prev' and 'next' are used to manage our TCB's on our ready list.  We set prev and next to maintain the TCB's correct position in the list. 
+
+When a thread is 'destroyed', we don't destroy it immediately. Rather, we set the variable 'int zombie' to 1. A value of 'one' means the thread is a zombie (basically dead), and will therefore will not be yielded to. A value of 'zero' means the thread is not a zombie, so it is accesible on the ready list we have created. 
+
+Our readyList is a doubly linked list that we are operating as a queue. The readyList struct contains the following: 
+   
+   int size;
+   ThrdCtlBlk *head;
+   ThrdCtlBlk *runningThread;
+   
+Size and head are used to organize the linked list. Size is the number of TCBs in our readyList at a time. 'head' points to the first TCB in our readyList. 
+
+We have a pointer to the runningThread in our list because our runningThread isn't actually on the readyList when it is running. It's ThrdCtlBlk has prev == NULL and next == NULL. 
+
+Our thread's library allows you to create a thread (Tid ULT_CreateThread(void (*fn)(void *), void *parg)), destroy a thread (Tid ULT_DestroyThread(Tid tid)), and yield to a thread (Tid ULT_Yield(Tid wantTid)). The details of how these work are in the project specifications, so we will discuss anything of particular interest in our implementation. 
+
+We have a global variable called firstCall, that is initially set to zero. At the beginning of every function, we test if firstCall = 0, which means that this is the first call every made to our thread's library. In this case, we know we need to initialize the readyList, and create a thread and TCB for the current state of the processor. After doing this, we set firstCall = 1 so that we don't initialize our readyList twice. 
+
+We also created one helper function, Tid killZombie(), that is equivalent to Destroy_Thread(ULT_ANY) (We actually just call killZombie() in the case that the input to ULT_DestroyThread is ULT_ANY and return the Tid of the zombie that was freed). It returns the tid of the killed zombie on success and returns ULT_NONE on failure. We call this function at the beginning of ULT_CreateThread  and ULT_Yield so that every time a library call is made, we clean up the readyList and free and TCBs that are declared zombies. Since we have implemented it like this, there is only ever one zombie on the readyList at a time. 
+
+
+
+****Describe your testing strategy here
+****(and explain how to run your tests and interpret your results)
+
+We created a file called ourThreadTests.c, and a header file ourThreadTests.h. Inside the main function in ourThreadTests.c is where we wrote all of our tests. 
+
+We modified GNUMakeFile so that when you type 'make', it compiles all of our necessary testing files. To run our tests, simply type ./ourThreadTests.
+
+One big test was getting our library to delete our running thread correctly. How we did this is we called ULT_DeleteThread(ULT_SELF) after we were done creating threads (it must be done here, because it frees our readyList at the end....this is equivalent to Mike's grandFinale()). After this completed, we attempted another destroy, which returned ULT_INVALID (as expected). 
+
+We created another function to pass in when creatin new threads. The function calculates the square of a number and prints its value to the screen.
+
+One of our main goals in testing was to make sure our thread functions output the correct values, specifically when they are returning values signifying a failure. All of our tests are followed by assert statements so successfully reaching the end of the main function signifies passing all of the tests. We have a print statement that lets you know if you have successfully completed all of the tets.  
+
+
+****Document your testing results here
+Our test output: 
+
+Now lets test some yields. Create 3 more threads, then let them run and clean themselves up:
+PASS
+Create 6 threads, triggering the creation of the current thread's TCB into the running list, then killing them.
+Finished creating thread
+PASS
+Test calling yield with invalid tid
+PASS
+Test Destroying all elements in list, then 1 Invalid Destroy!
+PASS
+Test yielding to self when ready list is emptyPASS
+Test that attempting to destroy thread with invalid tid returns ULT_INVALID
+PASS
+Now, destroy running thread: 
+Done destroying. Now no elements in ready list but there is a runningThread 
+THAT WAS OUR GRAND FINALE
+Test Destroying thread when ready list is empty
+PASS
+
+PASSED ALL TESTS!
+
+
+Note: We attempted to test ULT_DestroyThread(ULT_SELF) by creating two threads whose functions were 'fact()' with an argument of '8' (provided by Mike in basicThreadTests.c), then calling ULT_DestroyThread(ULT_SELF). We found that the prorgam got stuck in an infinite loop. At first, we thought this was a result of an error in our program, then realized it was a faulty test. The threads were operating correctly, they were just yielding to each other repetitively. We changed one of the functions to call suicide() (also provided by Mike in basicThreadsTest.c) instead of fact(), and the thread was successfully destroyed. 
+
+Another Note on MEMORY: We ran all our our tests with valgrind. Since we allocated space for our readyList in our initialization function, we still have "reachable memory" at very end of our program (for instance when stub does a system exit). To take care of this, we added:
+    free(rl->runningThread->stack_orig);
+    free(rl->runningThread);
+    free(rl);
+into our stub function right before 'exit(0)'. This left no reachable memory. So if our tests are run with a stub function that does not include these frees, it will show unreachable memory.

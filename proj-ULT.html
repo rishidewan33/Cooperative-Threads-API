@@ -1,0 +1,853 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Mike Dahlin, Mootaz Elnozahy">
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.04 [en] (WinNT; I) [Netscape]">
+   <META NAME="Classification" CONTENT="Public">
+   <META NAME="Description" CONTENT="Description of Project # 2">
+   <META NAME="KeyWords" CONTENT="CS372, CS 372, Spring 2011">
+   <TITLE>Project 2</TITLE>
+</HEAD>
+<BODY TEXT="#000000" BGCOLOR="#FFFFFF" LINK="#0000EE" VLINK="#551A8B" ALINK="#FF0000">
+&nbsp;
+<CENTER><TABLE CELLSPACING=0 CELLPADDING=0 COLS=2 WIDTH="100%" >
+<TR>
+<TD>
+<H2>
+<FONT COLOR="#000099">CS 372</FONT></H2>
+</TD>
+
+<TD>
+<DIV ALIGN=right>
+<H2>
+<FONT COLOR="#000099">2011</FONT></H2></DIV>
+</TD>
+</TR>
+</TABLE></CENTER>
+&nbsp;
+<TABLE COLS=1 WIDTH="100%" >
+<TR>
+<TD>
+<CENTER>
+<H2>
+Project 2</H2></CENTER>
+
+<CENTER>
+<H3>
+A User-Level Thread Package</H3></CENTER>
+</TD>
+</TR>
+</TABLE>
+
+<CENTER><B>Due:</B> Friday, Feb 11, 2011, 5:59:59 PM</CENTER>
+<H3>
+<A NAME="Section 1"></A><FONT COLOR="#003300">1. Threads</FONT></H3>
+
+<H4>
+<A NAME="1.1 Quick Overview"></A><FONT COLOR="#003300">1.1 Quick Overview</FONT></H4>
+A key abstraction in operating systems is threads and processes for concurrency.
+To gain a deeper understanding of how these abstractions are constructed,
+this project asks you to build the core of a user-level threads package.
+Building kernel-level processes and threads not would be much different,
+but we'll do this project at user level since installing new kernels on
+the instructional machines would be problematic.
+
+<P>Threads provide the illusion that different parts of your program are
+executing concurrently. Through the years, a model of executing multithreaded
+programs has emerged as a defacto standard. In this model, threads share
+the code, heap, and the runtime system. Each thread,  however,  has a separate
+stack and, naturally, a separate set of CPU registers. This programming
+model also provides synchronization primitives so that different threads
+can coordinate access to shared resources.
+<H4>
+<A NAME="1.3 scope"></A><FONT COLOR="#003300">1.2 Project Scope</FONT></H4>
+You will construct a library of functions that define a user-level threads
+package. Using your library, a program can create threads, destroy them,
+and allow the threads to control the scheduling underneath. Thus, a typical
+program using your library will typically look like:
+<UL>main(int argc, char ** argv)
+<BR>{
+<UL>// Some initialization
+<BR>// Create threads
+<BR>// wait for threads to finish
+<BR>// exit</UL>
+}
+<BR>
+<BR>// "Main" procedure for thread i
+<BR>root_i (...)
+<BR>{
+<UL>// do some work
+<BR>// yield
+<BR>// repeat as necessary
+<BR>// return (implicit thread destruction)</UL>
+}</UL>
+where "root_i" is a "root function" that the i<SUP>th</SUP> thread calls to
+start executing.
+<BR>When a thread is created, it is "assigned" a "root function" from which it
+starts executing. The thread within that function can perform useful work,
+then yield (voluntarily or involuntarily) the CPU to another thread, and
+repeat this sequence as necessary. The thread of course can call other
+functions from within its "root" function. A thread can destroy itself
+explicitly or implicitly. Explicit destruction is done by calling the thread
+library. The thread is implicitly destroyed when its root function returns.
+Additionally, to add more control to the program, a thread may destroy
+other threads as well.
+<H4>
+1.3 User-level v. kernel threads</H4>
+For practical reasons, this project is done at user level: you will construct
+a set of functions that your program will call to provide the illusion
+of concurrency. Modern operating systems provide kernel threads where similar
+functions are provided as system calls to the kernel rather than function
+calls to a library. Both types of threads use the same core techniques
+for providing the concurrency abstraction; you would build kernel threads
+in essentially the same way you build user threads in this project. Also,
+kernel processes are built using these techniques.
+
+
+<P>There are a few differences between kernel and user threads. Mainly:
+<UL>
+<LI>
+<B>Multiprocessing. </B>Whereas user level threads provide the illusion
+of concurrency, on machines with multiple processors, kernel level threads
+can provide actual concurrency. This is because for user level threads,
+the kernel schedules the user process on one CPU and the user-level threads
+package multiplexes threads of control within the process. For kernel threads,
+the kernel is aware of different threads of control, and it can simultaneously
+schedule different threads from the same process on different processors.</LI>
+
+<P><B>Note:</B> A key simplifying assumption for this project is that you will
+allow programs to multiplex some number (e.g., <I>m</I>) of user level
+threads on <I>one</I> kernel thread.  This means that at most one user
+level thread is running at a time and that your runtime system has
+complete control over the interleaving of user level threads with each
+other. More sophisticated systems implement <I>m on n</I> threads
+packages where <I>m</I> user level threads are multiplexed across
+<I>n</I> kernel threads.
+</P>
+
+<p><LI>
+<B>Asynchronous I/O.</B> When a user-level thread makes a system call that
+blocks (e.g., reading a file from disk), the kernel scheduler moves the
+process to the <I>Waiting</I> state and will not schedule it until the
+I/O has completed. Thus, even if there are other user-level threads within
+that process, they have to wait, too. Conversely, when a kernel thread
+blocks for a system call, the kernel scheduler is aware that other threads
+in the same process may be ready to run. Thus, some kernel threads may
+be running while others are waiting for I/O.</LI></p>
+
+<LI>
+<B>Timer interrupts.</B> In this project, to simulate the timer interrupts
+that cause the scheduler to switch from one thread or process to
+another, we will use POSIX signals. In your implementation, the threads
+library will will "turn off interrupts" by blocking delivery of these signals
+using system calls. However, there is nothing to prevent the threads, themselves,
+from "turning off interrupts" the same way. Thus, even though we will implement
+"preemptive" threads, a "malicious" thread could turn off interrupts and
+not be preempted until it calls Yield(), thus hogging the CPU. Note that
+kernel schedulers don't have this problem. Only the privileged code in
+the kernel can turn off the real timer interrupts.</LI>
+</UL>
+
+<H4>
+1.4 Provided code</H4>
+
+<p>
+We provide code to help you get started in <A HREF="http://www.cs.utexas.edu/users/dahlin/Classes/UGOS/labs/labULT.tar">http://www.cs.utexas.edu/users/dahlin/Classes/UGOS/labs/labULT.tar</A>
+</p>
+
+<H3><FONT COLOR="#003300">2. Thread context</FONT></H3>
+<P><FONT COLOR="#000000">
+Each thread has <I>per-thread state</I> that represents the
+working state of the thread---the thread's program counter, local
+variables, stack, etc. A <I>thread context</I> is a subset of this
+state that must be saved/restored from the processer when switching
+threads. (To avoid copying the entire stack, the thread context
+includes a pointer to the stack, not the entire stack.) Your library
+will store the thread context in a <I>thread control block</I>, a structure that
+holds the state your library keeps track of for each thread.
+</FONT>
+</P>
+
+
+
+<H4> <FONT
+COLOR="#003300">2.1 Saving/Restoring Thread Context</FONT></H4>
+
+<p><FONT
+COLOR="#000000">When a thread yields the CPU, the threads library must save
+the thread's current context. The current context contains all the
+registers that belong to the thread. The library restores the saved
+context later when the thread gets its turn to run on the
+processor. Additionally, the library creates a fresh context and a
+new stack when it creates a thread. </FONT></p>
+
+<p><FONT
+COLOR="#000000">Fortunately, the C runtime
+system allows an application to retrieve its current context and
+store it at a memory location and to set its current context to a
+predetermined value from a memory location.
+Your library will make use of two existing library
+calls: <I>getcontext</I> and <I>setcontext</I>. </FONT></P>
+
+<P><FONT COLOR="#000000">Study the <A HREF="http://linux.die.net/man/2/setcontext">manual pages</A>
+for these two calls. Notice that getcontext() saves the current
+context into a structure of type <I>struct ucontext</I> of type <I>ucontext_t</I>. So, if you
+allocate a <I>struct ucontext</I> in memory and pass a pointer to that
+memory to a call to getcontext(), the current registers and other
+context will be stored to that memory.  Later, you can call setcontext()
+to copy that state from that memory the processor, restoring the saved
+state.</FONT></P>
+
+<P><FONT COLOR="#000000">Look in <I>sys/ucontext.h</I> to find the details
+for the fields of a <I>struct ucontext</I>. On the cs department's
+public linux machines, this file is located in
+/usr/include/sys/ucontext.h.</FONT></P>
+
+<P><FONT COLOR="#FF0000">Finish implementing</FONT> <FONT
+COLOR="#000000">parseUcontext.c. Make sure you understand how a
+thread's context is saved.</FONT></P>
+
+<P><FONT COLOR="#000000">
+You will use <I>getcontext</I> and <I>setcontext</I> in two
+ways. First, to suspend a currently running thread (to run another
+one), you will use <I>getcontext</I> to save its state and later use
+<I>setcontext</I> to restore its state. Second, to create a new
+thread, you will use <I>getcontext</I> to create a valid context but
+you will leave the current thread running; you (the current thread, actually)
+will then change a few registers in this valid context to initialize
+it as new thread, and put this new thread onto the ready list;
+finally, at some point the new thread will be run by calling
+<I>setcontext</I> on this new thread's context.</FONT></P>
+
+
+<H4> <FONT
+COLOR="#003300">2.2 Changing Thread Context</FONT></H4>
+<P><FONT COLOR="#000000">
+As noted above, just creating identical thread contexts isn't quite
+enough. To create a new thread, you can't just make a copy of the
+current thread's context. You need to make a copy and then change 3 things:</FONT></P>
+
+<FONT COLOR="#000000">
+<UL>
+  <LI>You need to change the program counter to point to the function
+  that the thread should run.
+  </LI>
+  <LI>
+  You need to allocate and inititalize a new stack.
+  </LI>
+  <LI>
+  You need to change the stack pointer to point to the top of the new
+  stack. 
+  </LI>
+</UL>
+</FONT>
+
+<P><FONT COLOR="#000000">In the real world, you would take advantage
+of an existing library function, makecontext(), to make the first and third
+changes. In the real world, the advantage of using the function is that it abstracts
+away the details of how a context is saved in memory, which simplifies
+things and helps portability. In this class, the disadvantage
+is that it abstracts away the details of how a context is saved in
+memory, which might leave you vague on exactly what's going on.</FONT></P>
+
+<P><FONT COLOR="#000000">In the spirit of "there is no magic", for
+this project you <I>may not use makecontext()</I>. Instead, you must
+manipulate the fields in the saved ucontext_t directly.</FONT></P>
+
+<FONT COLOR="#000000">
+<UL>
+  <LI>You will change the program counter to point to a <I>stub function</I>
+  that the thread should run.
+  </LI>
+  <LI>
+  You will use malloc() to allocate a new stack, and you will
+  initialize the new stack to include arguments to the stub function.
+  </LI>
+  <LI>
+  You will change the stack pointer to point to the top of the new
+  stack. (Warning: in x86, stacks grow down!)
+  </LI>
+</UL>
+</FONT>
+
+<P>What is the stub function? How does the stack work? Read on.</P>
+
+
+<H4> <FONT
+COLOR="#003300">2.3 Stub function:</FONT></H4> <FONT
+COLOR="#000000">When you create a new thread, you want it to run some
+"root" function that defines the work you want it to do. 
+A thread is destroyed
+implicitly when it returns from its "root" function, much like the
+main program thread is destroyed when it returns from the "main"
+program. So, rather than have your thread begin by running the root
+function directly, a simple implementation of this feature is to start
+the thread initially in a "stub" function that calls the actual root
+function of the thread (much like main is actually being called from
+the crt0 stub in UNIX). Then, your root thread has somewhere to return
+to, should it return. This arrangement would look like:</FONT> <BR>&nbsp;
+<UL>
+  <FONT COLOR="#000000">stub(void (*root)(void *), void *arg)</FONT>
+  <BR><FONT
+COLOR="#000000">{</FONT>
+  <UL><FONT COLOR="#000000">// thread starts
+here</FONT> <BR><FONT COLOR="#000000">Tid ret;</FONT> <BR><FONT
+COLOR="#000000">root(arg); // call root function</FONT> <BR><FONT
+COLOR="#000000">ret = ULT_DestroyThread(ULT_SELF)</FONT> <BR><FONT
+COLOR="#000000">assert(ret == ULT_NONE); // we should only get here
+if we are the last thread. </FONT>
+  <BR><FONT
+COLOR="#000000">exit(0); // all threads are done, so process should
+exit</FONT>
+</UL>
+<BR><FONT COLOR="#000000">}</FONT>
+</UL>
+
+<p><FONT COLOR="#000000">In the above code, the argument <I>root</I>
+is a pointer to the root
+function that describes the real work the thread should do; notice
+that in C, a function's name refers to the address of its code in memory. <I>arg</I>
+is the argument to pass to that function; we'll have the root function
+take a pointer to an arbitrary type as an argument so that you can
+pass the root function pointer to whatever you want. ULT_DestroyThread,
+ULT_SELF, and ULT_NONE are defined below.</FONT?</p>
+
+
+<H4>2.4 On contexts and calling conventions</H4> 
+<p><FONT COLOR="#000000">The context variable
+contains many data fields, but you need only deal with two of them:
+the stack pointer and the program counter. Other than that, you
+don't need to worry about the fields within the context variable, as
+long as you do not tamper with them. Also, it is a good idea to use
+variables that have been initialized through a getcontext
+call in order to not have bizarre behavior. </FONT></p>
+
+<p>Under the C calling conventions in x86, here's what
+things look like while  any given function is executing:</p>
+
+<CENTER>
+<IMG SRC="stackframe-cdecl.gif"></IMG>
+<BR><FONT SIZE=-5>Image from <A HREF="http://unixwiz.net/techtips/win32-callconv-asm.html">unixwiz.net</A></FONT>
+</CENTER>
+
+<p>Notice that as a procedure executes, it can allocate
+local space by moving the stack pointer, and it can
+find local variables, parameters, return addresses, and
+the return %ebp by indexing relative to the (fixed) %ebp
+register.</p>
+
+<p>
+To make a procedure call, the compiler pushes parameters onto the
+stack from right to left, saves the current instruction pointer
+(eip) onto the stack, and changes the instruction pointer to the 
+called procedure. The called procedure then saves the old
+frame pointer (ebp) onto the stack and sets the new frame
+pointer to point to the old frame pointer at the top of the stack. 
+Now the called function is free to shove other stuff
+onto the stack (e.g., local variables, register spills, saved
+registers, the frames of called procedures) because
+it can still locate stuff (especially return information) relative
+to the fixed frame pointer (ebp). </p>
+
+<p>To return to the caller, 
+a procedure simply copies the frame pointer (ebp) to the stack pointer
+(esp),
+pops the top stack item into ebp to restore the old ebp,
+and uses the <tt>ret</tt> instruction to pop the old instruction 
+pointer  off the stack into the processor's instruction register
+(eip), returning control to the calling function.</p> 
+
+
+
+
+
+
+<H3>
+<A NAME="Section 3"></A><FONT COLOR="#003300">3. Cooperative Thread
+Package Application Program Interface (API)</FONT></H3>
+
+<p><FONT COLOR="#000000">In this project you will build a user level
+threads package. A key simplifying assumption (relaxed in the extra
+credit portion below) is that threads are <I>cooperative</I>---each
+thread runs until it explicitly releases the CPU to another thread by
+yielding the thread or exiting. In contrast <I>preemptive</I> threading
+systems allow a scheduler to interrupt a running thread at any time
+and switch the CPU to running a different thread.</FONT></p>
+
+<FONT COLOR="#000000">The thread package provides several functions calls
+to allow application programs a degree of control over thread management.
+In addition, there are a few conventions that application programs must
+adhere to in order to ensure proper and safe operation. A list of the functions
+that constitute the User-level threads (ULT) API can be found in <A HREF="ULT.h">ULT.h</A>
+and are summarized here:</FONT>
+<UL>
+<LI>
+<B><FONT COLOR="#663366">Tid ULT_Yield(Tid tid):&nbsp; </FONT></B><FONT COLOR="#000000">This
+function suspends the caller and activates the thread given by the identifier
+</FONT><B><I><FONT COLOR="#663366">tid. </FONT></I></B><FONT COLOR="#000000">The
+caller is put on the ready queue and can be invoked later in a similar
+fashion. The value of </FONT><B><I><FONT COLOR="#663366">tid </FONT></I></B><FONT COLOR="#000000">may
+take the identifier of any available thread. It also can take any of the
+following constants:</FONT></LI>
+
+<UL>
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_ANY
+</FONT></B><FONT COLOR="#000000">tells the thread system to invoke any
+thread on the ready queue. A sane policy is to run the thread at the head
+of the ready queue.</FONT></LI>
+
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_SELF
+</FONT></B><FONT COLOR="#000000">tells the thread system to continue the
+execution of the caller. This turns the function call into an no-op, but
+it may be useful for debugging purposes.</FONT></LI>
+</UL>
+<FONT COLOR="#000000">The function returns the identifier of the thread
+that took control as a result of the function call. Note that the caller
+does not get to see the result until it gets its turn to run (later). The
+function also may fail and the caller resumes immediately. To indicate
+the reason for failure, the call returns one of these constants:</FONT>
+<UL>
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_INVALID
+</FONT></B><FONT COLOR="#000000">alerts the caller that the identifier</FONT><B><FONT COLOR="#663366">
+<I>tid </I></FONT></B><FONT COLOR="#000000">does not correspond to a valid
+thread.</FONT></LI>
+
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_NONE
+</FONT></B><FONT COLOR="#000000">alerts the caller that there are no more
+threads (other than the caller) available to run (in response to a
+call
+with <I>tid</I> set to ULT_SELF) or available to destroy (in response
+to a call wtih <I>tid</I> set to ULT_ANY.)</LI>
+</UL>
+</LI>
+
+
+<LI>
+<B><FONT COLOR="#663366">Tid ULT_CreateThread(void (*fn)(void *), 
+void *arg):&nbsp;&nbsp; </FONT></B><FONT COLOR="#000000">This function
+creates a thread whose starting point is the function </FONT><B><I><FONT COLOR="#663366">fn.
+</FONT></I></B>.
+<B><I><FONT COLOR="#663366">Arg</FONT></I></B><FONT COLOR="#000000">
+is a pointer that will be passed to the function when the thread starts
+executing; arg thus allows arguments to be passed to the function. Upon
+success, the function returns a thread identifier of type </FONT><B><I><FONT COLOR="#663366">Tid.
+</FONT></I></B><FONT COLOR="#000000">If the function fails, it returns
+a value that indicates the reason of failure as follows:</FONT></LI>
+
+<UL>
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_NOMORE
+</FONT></B><FONT COLOR="#000000">alerts the caller that the thread package
+cannot create more threads.</FONT></LI>
+
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_NOMEMORY
+</FONT></B><FONT COLOR="#000000">alerts the caller that the thread package
+could not allocate memory to create a stack of the desired size.</FONT></LI>
+</UL>
+<FONT COLOR="#000000">The created thread is put on a ready queue but does
+not start execution yet. The caller of the function continues to execute
+after the function returns.</FONT>
+
+<LI>
+<B><FONT COLOR="#663366">Tid ULT_DestroyThread(Tid tid):&nbsp;</FONT></B><FONT COLOR="#000000">
+This function destroys the thread whose identifier is </FONT><B><I><FONT COLOR="#663366">tid.
+</FONT></I></B><FONT COLOR="#000000">The caller continues to execute and
+receives the result of the call. The value of </FONT><B><I><FONT COLOR="#663366">tid
+</FONT></I></B><FONT COLOR="#000000">may take the identifier of any available
+thread. It also can take any of the following constants:</FONT></LI>
+
+<UL>
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_ANY
+</FONT></B><FONT COLOR="#000000">tells the thread system to destroy any
+thread <I>except the caller</I>. While this sounds too draconian, this function
+can help in dealing with drastic situations where a thread detects a fatal
+error that cannot be handled and the only recourse is to stop the program.</FONT></LI>
+
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_SELF
+</FONT></B><FONT COLOR="#000000">tells the thread system to destroy the
+caller. In this case, the system destroys the caller and reclaims its resources.
+The function obviously does not return in this case. Instead, some
+other ready thread gets scheduled.</FONT></LI>
+
+<p><B>Be careful.</B> It is dangerous to use memory once it has been freed. In particular,
+you should not free the stack of the currently running thread while it is still
+running. (Yet you still need to make sure that that stack eventually
+gets deallocated. Think about this a bit!)  You should convince yourself that
+your program would work even if you used a debugging malloc library
+that overwrites a block with dummy data when that block is free()'d.
+</p>
+
+<p><B>Be careful.</B> If you destroy a thread that is holding a
+lock, deadlock may occur. For this reason, it is usually best to only use DestroyThread
+to have each thread destroy itself (not other threads.) In fact, the Java library <I>deprecates</I>
+the equivalent function in their thread library.
+Note that Java's alternative makes use of the richer exception
+model that Java has compared to C.
+We include the more general form here
+partly as a design exercise and because you may need it for some of your tests.
+</UL>
+<FONT COLOR="#000000">Upon success, the function returns the identifier
+of the destroyed thread. The function also may fail and returns one of
+these constants:</FONT>
+<UL>
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_INVALID
+</FONT></B><FONT COLOR="#000000">alerts the caller that the identifier</FONT><B><FONT COLOR="#663366">
+<I>tid </I></FONT></B><FONT COLOR="#000000">does not correspond to a valid
+thread.</FONT></LI>
+
+<LI>
+<FONT COLOR="#000000">The constant </FONT><B><FONT COLOR="#006600">ULT_NONE
+</FONT></B><FONT COLOR="#000000">alerts the caller that there are no
+more other
+threads available to destroy (in response to a call with </FONT><B><I><FONT COLOR="#663366">tid
+</FONT></I></B><FONT COLOR="#000000">set to </FONT><B><FONT COLOR="#006600">ULT_ANY</FONT></B><FONT COLOR="#000000">)</FONT><FONT COLOR="#006600">.</FONT></LI>
+</UL>
+</UL>
+
+<H4>
+<FONT COLOR="#003300">3.1 Structure of and requirements on your solution:</FONT></H4>
+<FONT COLOR="#000000">Your library must maintain a "thread control block"
+for each thread that is running in the system. This is similar to the process
+control block that an operating system implements to support process management.
+In addition, your library must maintain a queue of the threads ready to
+run, so that it can process the application program function calls. Note
+that the application programs do not explicitly call a function to initialize
+the library data structures. Therefore, your library must always ensure
+that any necessary initialization is done during the first time a function
+is called within the library.</FONT>
+
+<p><FONT COLOR="#000000">As noted above, your library must use
+<I>getcontext()</I> and <I>setcontext()</I> to save and restore thread
+context state, but it <B>may not use</B> <I>makecontext</I> or any
+other existing code to manipulate a thread's context; you need to
+write the code to do that yourself.</FONT></p>
+
+
+
+<FONT COLOR="#000000">Each thread should have a stack of at least
+<B>ULT_MIN_STACK</B> and your implementation should support the
+creation exactly <B>ULT_MAX_THREADS</B></FONT> threads by a
+program (including the initial main thread). Your implementation <B>must not</B> statically allocate all
+stacks at initialization time. Instead, you must dynamically allocate a stack
+whenever a new thread is created (and delete one each time a thread is destroyed.)</p>
+
+
+
+
+ <H4> 3.2 Hints, leading questions, and advice</H4> 
+
+<p>This project does not require to
+write a large number of lines of code. It does require you to think
+carefully about the code you write. Before you dive into writing
+code, it will pay to spend time planning and understanding the code
+you are going to write. If you think the problem through from
+beginning to end, this project will not be too hard. If you try to
+hack your way out of trouble, you will spend many frustrating nights
+in the lab.  </p>
+
+<P>As a start, here are some questions you should
+answer before you write code. 
+
+<UL> <LI> Getcontext
+"returns" twice. Once when you create a context and again when you
+switch to that context. What action will you take in each case? How
+will you tell which case you are in?</LI>  
+
+<LI> Most threads are created with ULT_CreateThread(), but 
+the initial thread is there before your library is
+invoked. Nonetheless,
+the original thread must be able to ULT_Yield() to let other
+threads run, and other threads must be able to ULT_Yield()
+and let the original thread run.
+</LI>
+<LI>
+In fact, a <b>strongly recommended</b> first
+milestone might be for ULT_Yield(ULT_SELF) to work for
+the initial thread (where your implementation stores
+the caller's state to a thread control block in the ready
+queue and then resores that state from the thread control block.
+Get this working before you try to implement ULT_CreateThread()
+or ULT_DeleteThread().</LI>
+<LI>
+Also note that when
+the initial thread in a C process returns, it calls the exit()
+system call, which causes the OS to destroy the process (even
+if you have other user level threads in the process that want to run.)
+</LI>
+
+
+
+<LI> A hard bug to find would
+be an overflow or underflow of the stack you allocate. How might
+such a bug manifest itself? What defensive programming strategies
+can you use to detect stack overflow in a more controlled manner as
+the system runs?</LI> 
+
+<LI><B>Use a debugger</B>. As an exercise, put a breakpoint
+at the instruction after you copy the current thread's state
+using <tt>getcontext()</tt>. You can print the current
+values of the registers (in gdb, type "info registers"). 
+<pre>
+(gdb) info registers
+eax            0x0	0
+ecx            0x0	0
+edx            0x804b224	134525476
+ebx            0xf7f49ff4	-134963212
+esp            0xffee72f0	0xffee72f0
+ebp            0xffee7318	0xffee7318
+esi            0xf7f8dce0	-134685472
+edi            0x0	0
+eip            0x8048d15	0x8048d15 <ULT_Yield+155>
+eflags         0x246	[ PF ZF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+</pre>
+You can print the values stored in your structs
+(e.g., in gdb I use "print/x myTcb->context" to print
+the context stored by a call to getcontext()).
+
+<p>You may find this particularly useful in making
+sure that the state you "restore" when you first
+run a newly-created thread makes sense.</p>
+</LI>
+
+</UL>  
+
+<H4>3.3 Tests</H4>
+<p>
+Your library is done, the tests in doTest.c should run.
+Grade.sh will compare your results to the expected
+results in <A HREF="doTest.expected">doTest.expected</A>
+</p>
+<pre>
+> make doTest
+...
+> ./doTest
+...
+Done.
+> 
+</pre>
+
+<p> These tests are provided as a guide to help you with
+your debugging. 
+<B>Note that successfully running these tests is not a guarantee
+that your solution is correct or that it will get a good grade.</B>
+We will also look at source code, run other tests, etc.
+</p>
+
+<p>You should write additional tests of your own.  The worst
+consequence of a subtle bug is not a bad grade, it is the many hours
+you may end up suffering in the lab. A mark of a good programmer is a
+good testing strategy -- spend some time adding to the tests we
+provide.  </p>
+
+
+<H3> 4. Extra credit (20%) Preemptive multi-threading</H3> 
+
+In this optional phase of the project, you will extend
+the cooperative multi-threaded system (where ULT_Yield() causes
+control to be passed from one thread to the next) to make it a
+pre-emptive system where simulated "timer interrupts" cause the
+system to switch from one thread to another.
+</p>
+
+
+<P>In the files <A
+HREF="interrupt.h">interrupt.h</A> and <A
+HREF="interrupt.c">interrupt.c</A> we provide code to install a
+signal handler routine that will be called whenever the process
+receives a SIGALRM signal. This code also uses the alarm() system call
+to cause the system to periodically send SIGALRM calls to the
+process. Make the program <tt>showHandler</tt> and run it 
+to see how this works.</p>
+
+
+<!---
+<BLINK>Mike check this</BLINK><I>Note: your makefile for compiling under linux should
+link the executable using the -lpthreads flag; the -lpthreads
+flags forces the system to use the Posix standard version of
+alarm() and other system calls.</I>  
+--->
+
+
+<P>Your task is to modify the <tt>interruptHandler()</tt>
+routine (and your threads system) to move the currently executing
+process to the ready queue and to move some process off the ready
+queue to become the new currently executing process.  <P>Shared
+data structures. Note that interrupt signals can be sent to your
+process at any time <I>even when a thread is in the middle of a
+ULT_Yield(), ULT_DestroyThread(), or ULT_CreateThread() call</I>. It
+is a very bad idea to allow multiple threads to access shared
+variables (such as your ready queue) at the same time. You should
+therefore ensure that only one thread can be in a <I>critical
+section</I> (accessing global variables) of the thread library at a
+time. A simple way to do this is to disable interrupts when you
+enter procedures of the thread library and enable interrupts when
+you leave. In the interrupt.c/.h files, we provide the routines
+interruptsOn() and interruptsOff() to accomplish this.
+
+
+<P>Hint:
+think carefully about the invariants you want to maintain about when
+interrupts are on and when they are off. Note that because of thread
+context switches, the thread that turns off interrupts may not be the
+one that turns them on. Maintain the right invariants, and you'll
+have no trouble dealing with this.
+</P>
+
+<H4>4.1 Tests</H4>
+<p>
+Once phase 2 is done, the tests in doTest2.c should run.
+Grade.sh will compare your results to the expected.
+Again, you should not  count on these tests to be comprehensive,
+and you should add your own tests to protect your grade and your sanity.
+</p>
+
+<H4>4.2 Additional notes and disclaimers</H4>
+<p>
+If you attempt the extra credit, be sure to include a text file README-XC that
+documents your approach to help the TA understand and evaluate it.
+</p>
+<p>
+If you attempt the extra credit, be sure to save a working version of
+the lab first. You may want to make use of a version control system like SVN
+or CVS to track multiple versions of your code.
+</p>
+
+<p> The number of points available here is small relative to the work
+you will have to do. Don't do this extra credit portion of the
+assignment for the points -- do it for your own interest and
+benefit. Note that the instructional staff will not be able to provide
+much assistance on the extra credit (we'll be focusing our attention
+on people still working on the main part of the assignment.) Also note
+that we won't spend much time grading the extra credit work you turn
+in. There are two implications: (1) It either is right or it isn't. If
+it isn't, we're not going to spend time trying to identify places
+where we can give you partial credit. (2) <B>You must provide concise,
+clear documentation of your design in README-XC and you must provide
+and document a systematic, comprehensive, convincing test plan for
+your code</B>. It is not the TA's job to test your code and find problems, it is
+your job to test your code and convincintly demonstrate that it works.
+If the TA cannot easily and quickly understand what you did, you will
+not receive extra credit points.
+</p>
+
+
+<H3>
+<A NAME="Section 5"></A><FONT COLOR="#003300">5. On Programming and Logistics</FONT></H3>
+
+<UL>The following guidelines should help smooth the process of delivering
+your project. You can help us a great deal by observing the following:
+<UL>
+<LI>
+You will work on this project in groups of two. If you cannot find
+a partner, contact Mike immediately!</LI>
+
+<LI>
+<B>We will grade the project on the department's public linux machines
+(run "cshosts publinux" for a list.). Ensure that you project works there!</B> If you
+do development on another platform, you do so at your own risk. The statement
+"it worked on my home machine" will not be considered in the grading process.&nbsp;
+(Note: it should be possible to do most development on other flavors of
+Unix, OSX, and perhaps even Windows/Cygwin, and you are welcome to do so. But, managing any
+difficulties porting to Linux is your job, and you should allow time
+for doing so.)</LI>
+
+<LI>
+After you finish your work, please use the <FONT COLOR="#FF0000">turnin
+</FONT><FONT COLOR="#000000">utility to submit your work.</FONT></LI>
+
+<UL>&nbsp;
+<CENTER><TABLE WIDTH="60%" >
+<TR>
+<TD>Usage:</TD>
+
+<TD>% make clean</TD>
+</TR>
+<TR>
+  <TD></TD>
+<TD>% turnin -submit <I>muqeet</I> handin-372-labULT <FONT COLOR="#FF0000">your_files</FONT></TD>
+</TR>
+</TABLE></CENTER>
+&nbsp;</UL>
+
+<LI>
+Do not include object files in your submission!!</LI>
+
+<LI>
+Select reasonable names for your files and variables. This way, you make
+grading easier.</LI>
+
+<LI>
+Your files should never refer to absolute names. For example, to include
+foo.h, do not write:</LI>
+
+<UL>&nbsp;&nbsp;<FONT COLOR="#003300"> </FONT><FONT COLOR="#000099">#include
+"/u/dahlin/cs372/labs/labULT/foo.h"&nbsp; /* poor style */</FONT></UL>
+
+<LI>
+You must provide a documentation file README.txt that explains briefly your solution
+and any assumptions that you made. 
+The code, itself, should contain the bulk of your
+documentation in the form of well-considered comments. </LI>
+
+<LI>
+Thorough testing is the mark of a good programmer. In addition to turning
+in the code for the system specified above, you should also turn in a set
+of test programs that exercise the functionality of your system. Your documentation
+should list these programs, explain how to run them, explain the importance
+of each test, and summarize the expected results of each.
+We will deduct fewer points for errors that your test system flags
+than for errors that it does not catch but that we do.</LI>
+
+<LI>
+You are encouraged to reuse <I><FONT COLOR="#990000">your own</FONT></I>
+code that you might have developed in previous courses to handle things
+such as queues, sorting, etc. Alternatively, you may use other
+publicly available code for basic data structures, etc.</LI>
+
+<LI>You may <B>not</B> use code that 
+subsumes the heart of this project (e.g., you should not base your
+solution on wrappers of or code taken from the posix thread
+library). If in doubt, ask.
+</LI>
+
+
+<LI>
+You are encouraged to discuss the problem with your colleagues. However,
+you must follow the collaboration restrictions described in the syllabus.
+For example, 
+you are not allowed to look at anyone else's code, and no one else can
+not look at yours.
+For example, when you are talking to them, you should not be looking
+at your code, and vice versa.</LI>
+
+
+<LI>
+If you find that the problem is under specified, please make reasonable
+assumptions and document them in the documentation file.</LI>
+
+<LI>
+<B>This project's main difficulty is in conceptualizing the solution. Once
+you overcome that hurdle, you will be surprised at how relatively simple
+the implementation is!</B></LI>
+</UL>
+
+<CENTER><B><BLINK><FONT COLOR="#FF0000">Start early, we mean
+it!!!</FONT></BLINK></B></CENTER>
+&nbsp;
+
+</BODY>
+</HTML>
