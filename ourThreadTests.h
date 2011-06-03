@@ -5,4 +5,4 @@ void grandFinale();
 static void hello(char *msg);
 static int fact(int n);
 static void printSquare(int n);
-#endif 
+#endif
