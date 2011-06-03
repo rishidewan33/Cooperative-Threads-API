@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* We want the extra information from these definitions */
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif /* __USE_GNU */
@@ -42,7 +41,7 @@ Tid ULT_CreateThread(void (*fn)(void *), void *parg)
 
   /*
   If this is the first call (i.e. firstCall == 0),
-  then we will call the listinit
+  then we will call the listInit
   which will initialize the readyList
   */
   
