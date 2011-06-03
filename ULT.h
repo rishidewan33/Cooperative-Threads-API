@@ -31,7 +31,6 @@ static const Tid ULT_INVALID = -3; //Returned By: Destroy and Yield
 static const Tid ULT_NONE = -4; //Returned By: Destroy and Yield
 static const Tid ULT_NOMORE = -5;  //Returned By: Create
 static const Tid ULT_NOMEMORY = -6; //Returned By: Create
-static const Tid ULT_FAILED = -7; //What the devil is this for?!
 
 static inline int ULT_isOKRet(Tid ret){
   return (ret >= 0 ? 1 : 0);
