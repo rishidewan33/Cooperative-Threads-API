@@ -383,5 +383,3 @@ void initializeRL()
   rl = malloc(sizeof(readyList)); //Allocate memory for readyList
   rl_init(rl); //Initialize said readyList
 }
-
-
