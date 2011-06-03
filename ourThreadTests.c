@@ -6,7 +6,6 @@
 #include <time.h>
 
 int main(){
-  
 
   int ret;
   int ret2;
