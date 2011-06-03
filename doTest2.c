@@ -8,7 +8,6 @@ int main(int argc, char **argv)
 {
   registerHandler();
 
-
   /* 
    * Make sure basic thread stuff still works
    */
