@@ -12,7 +12,7 @@ typedef struct ThrdCtlBlk
     ucontext_t uc; //context for the threads
     unsigned int *sp; //Allocate memory and point to the stack
     unsigned int *stack_orig; //this points to the top of the original stack so when free, free all mem
-    int zombie; //Pseudo-boolean for zombie state. BRAINS!!!!
+    int zombie; //Pseudo-boolean flag for zombie state. BRAINS!!!!
     struct ThrdCtlBlk *prev;
     struct ThrdCtlBlk *next;   
 } ThrdCtlBlk;
