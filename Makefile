@@ -1,5 +1,4 @@
 
-
 CC	:= gcc 
 CFLAGS := -g -Wall -Werror $(LABDEFS)
 
@@ -102,3 +101,4 @@ ourThreadTests.o: ourThreadTests.c interrupt.h ULT.h $(MOREH)
 
 ourThreadTests: ourThreadTests.o libULT.a 
 	gcc $(CFLAGS) -o $@ ourThreadTests.o $(ULT_LIB)
+
