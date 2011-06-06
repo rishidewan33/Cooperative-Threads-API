@@ -6,7 +6,7 @@ Lindsey O'Niell
 
 Each thread in our user-level threads package has its own Thread Control Block. The Thread Control Block's struct contains the following: 
 
-typedef struct ThrdCtlBlk
+typedef struct ThrdCtlBlk //This struct acts as a node for the Thread Ready List. (see the prev and next pointers?)
 {
     Tid tid;
     ucontext_t uc;
@@ -82,10 +82,14 @@ PASS
 PASSED ALL TESTS!
 
 
-Note: We attempted to test ULT_DestroyThread(ULT_SELF) by creating two threads whose functions were 'fact()' with an argument of '8' (provided by Mike in basicThreadTests.c), then calling ULT_DestroyThread(ULT_SELF). We found that the prorgam got stuck in an infinite loop. At first, we thought this was a result of an error in our program, then realized it was a faulty test. The threads were operating correctly, they were just yielding to each other repetitively. We changed one of the functions to call suicide() (also provided by Mike in basicThreadsTest.c) instead of fact(), and the thread was successfully destroyed. 
+Note: We attempted to test ULT_DestroyThread(ULT_SELF) by creating two threads whose functions were 'fact()' with an argument of '8' (provided in basicThreadTests.c), then calling ULT_DestroyThread(ULT_SELF). We found that the prorgam got stuck in an infinite loop. At first, we thought this was a result of an error in our program, then realized it was a faulty test. The threads were operating correctly, they were just yielding to each other repetitively. We changed one of the functions to call suicide() (also provided in basicThreadsTest.c) instead of fact(), and the thread was successfully destroyed. 
 
 Another Note on MEMORY: We ran all our our tests with valgrind. Since we allocated space for our readyList in our initialization function, we still have "reachable memory" at very end of our program (for instance when stub does a system exit). To take care of this, we added:
+
+    //located in the stub function in ULT.c
     free(rl->runningThread->stack_orig);
     free(rl->runningThread);
     free(rl);
 into our stub function right before 'exit(0)'. This left no reachable memory. So if our tests are run with a stub function that does not include these frees, it will show unreachable memory.
+
+In the near future, the preemptive portion of the library might be implemented in the future.
